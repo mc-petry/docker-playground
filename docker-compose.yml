@@ -1,0 +1,97 @@
+services:
+  rabbit:
+    container_name: rabbit
+    image: 'rabbitmq:3-management-alpine'
+    hostname: rabbitmq
+    env_file:
+      - .rabbit.env
+    ports:
+      # - 5672:5672
+      - 15672:15672
+    networks:
+      backend:
+        ipv4_address: 10.0.0.101
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 30s
+      retries: 3
+
+  redis:
+    container_name: redis
+    image: 'redis:6-alpine'
+    # ports:
+    #   - 6379:6379
+    volumes:
+      - 'redis_data:/data'
+    networks:
+      backend:
+        ipv4_address: 10.0.0.102
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  pg:
+    container_name: postgres
+    image: 'postgres:13-alpine'
+    env_file: 
+      - .postgres.env
+    volumes:
+       - ./volumes/pg/data:/var/lib/postgresql/data
+       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    expose:
+      - 5439
+    ports:
+      - 5439:5432
+    #   - 5439:5432
+    networks:
+      backend:
+        ipv4_address: 10.0.0.103
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  sender:
+    container_name: sender
+    build:
+      context: sender
+    environment:
+      - RABBIT=amqp://admin:admin@rabbit:5672
+    depends_on:
+      - rabbit
+    networks:
+      backend:
+        ipv4_address: 10.0.0.104
+
+  processing:
+    container_name: processing
+    build:
+      context: processing
+    environment:
+      - RABBIT=amqp://admin:admin@rabbit:5672
+      - REDIS=redis://redis:6379
+      - PG=postgres://postgres:postgres@pg:5432/mc
+    external_links:
+      - pg
+    depends_on:
+      - rabbit
+      - redis
+      - pg
+    networks:
+      backend:
+        ipv4_address: 10.0.0.105
+
+networks:
+  backend:
+    ipam:      
+      driver: default
+      config:
+        - subnet: 10.0.0.0/24
+
+volumes:
+  redis_data:
+    driver: local
