@@ -6,7 +6,6 @@ services:
     env_file:
       - .rabbit.env
     ports:
-      # - 5672:5672
       - 15672:15672
     networks:
       backend:
@@ -20,8 +19,6 @@ services:
   redis:
     container_name: redis
     image: 'redis:6-alpine'
-    # ports:
-    #   - 6379:6379
     volumes:
       - 'redis_data:/data'
     networks:
@@ -41,11 +38,6 @@ services:
     volumes:
        - ./volumes/pg/data:/var/lib/postgresql/data
        - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    expose:
-      - 5439
-    ports:
-      - 5439:5432
-    #   - 5439:5432
     networks:
       backend:
         ipv4_address: 10.0.0.103
